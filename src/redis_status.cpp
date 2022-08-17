@@ -1,32 +1,30 @@
 #include "redis_status.h"
 
-RedisStatus::RedisStatus() : reply_(NULL), ok_(true),nil_(false), detailStr_(), resultInt_(0)
+RedisStatus::RedisStatus() : m_reply(NULL), m_ok(true), m_nil(false), m_detailStr(), m_resultInt(0)
 {
-
 }
 
 bool RedisStatus::ok() const
 {
-    return ok_;
+    return m_ok;
 }
 
 bool RedisStatus::nil() const
 {
-    return nil_;
+    return m_nil;
 }
 
 redisReply *RedisStatus::reply() const
 {
-    return reply_;
+    return m_reply;
 }
 
 string RedisStatus::detail() const
 {
-    return detailStr_;
+    return m_detailStr;
 }
 
 long long RedisStatus::integer() const
 {
-    return resultInt_;
+    return m_resultInt;
 }
-

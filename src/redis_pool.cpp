@@ -1,9 +1,10 @@
 #include "redis_pool.h"
 
-RedisConnection::RedisConnection(RedisPool *redisPool)
+RedisConnection::RedisConnection(RedisPool *redisPool, int64_t timeout)
 	: m_context(NULL),
-	  m_lastActiveTime(time(NULL)),
-	  m_redisPool(redisPool)
+	  m_lastActiveTime(std::chrono::steady_clock::now()),
+	  m_redisPool(redisPool),
+	  m_timeout(timeout)
 {
 }
 
@@ -43,39 +44,57 @@ bool RedisConnection::ping()
 	return true;
 }
 
+void RedisConnection::updateActiveTime()
+{
+	if (m_timeout > 0)
+		m_lastActiveTime = std::move(std::chrono::steady_clock::now());
+}
+
+bool RedisConnection::isExpire()
+{
+	if (m_timeout > 0)
+	{
+		auto curTime = std::move(std::chrono::steady_clock::now());
+		auto duration = std::chrono::duration_cast<std::chrono::seconds>(curTime - m_lastActiveTime);
+		if (duration.count() >= m_timeout)
+			return true;
+	}
+	return false;
+}
+
 RedisPool::RedisPool(const std::string ip, uint16_t port, int minConn, int maxConn)
-	: hostip_(ip),
-	  hostport_(port),
-	  minConn_(minConn),
-	  maxConn_(maxConn),
-	  mutex_(),
-	  notEmpty_(mutex_),
-	  connections_(),
-	  quit_(false)
+	: m_hostip(ip),
+	  m_hostport(port),
+	  m_minConn(minConn),
+	  m_maxConn(maxConn),
+	  m_mutex(),
+	  m_notEmpty(m_mutex),
+	  m_connQueue(),
+	  m_quit(false)
 {
 }
 
 RedisPool::~RedisPool()
 {
-	MutexLockGuard lock(mutex_);
+	MutexLockGuard lock(m_mutex);
 
-	quit_ = true;
-	cronThread->join();
+	m_quit = true;
+	m_cronThread->join();
 
-	connections_.clear();
-	minConn_ = 0;
+	m_connQueue.clear();
+	m_minConn = 0;
 }
 
 int RedisPool::init()
 {
-	for (int i = 0; i < minConn_; i++)
+	for (int i = 0; i < m_minConn; i++)
 	{
 		auto conn = std::make_shared<RedisConnection>(this);
 		if (conn->connect())
-			connections_.push_back(conn);
+			m_connQueue.push_back(conn);
 	}
 
-	cronThread = new std::thread(std::bind(&RedisPool::serverCron, this));
+	m_cronThread = new std::thread(std::bind(&RedisPool::serverCron, this));
 
 	return 0;
 }
@@ -83,61 +102,61 @@ int RedisPool::init()
 // move out the disabled connections
 void RedisPool::serverCron()
 {
-	while (!quit_)
+	while (!m_quit)
 	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-		MutexLockGuard lock(mutex_);
+		std::this_thread::sleep_for(std::chrono::milliseconds(10000)); // 10s检测一次
+		MutexLockGuard lock(m_mutex);
 
-		for (auto it = connections_.begin(); it != connections_.end(); it++)
+		for (auto it = m_connQueue.begin(); it != m_connQueue.end(); it++)
 		{
-			if (!(*it)->ping())
-				connections_.remove(*it);
+			if ((*it)->isExpire() || !(*it)->ping())
+				m_connQueue.remove(*it);
 		}
 	}
 }
 
 RedisConnection::ptr RedisPool::getConnection()
 {
-	MutexLockGuard lock(mutex_);
+	MutexLockGuard lock(m_mutex);
 
-	while (connections_.empty())
+	while (m_connQueue.empty())
 	{
-		if (minConn_ >= maxConn_)
+		if (m_minConn >= m_maxConn)
 		{
-			notEmpty_.wait();
+			m_notEmpty.wait();
 		}
 		else
 		{
-			auto conn = std::make_shared<RedisConnection>(this);
+			auto conn = std::make_shared<RedisConnection>(this, 120); // 可以为额外新增的连接设置有效期
 			if (conn->connect())
 			{
-				connections_.push_back(conn);
-				minConn_++;
+				m_connQueue.push_back(conn);
+				m_minConn++;
 			}
 		}
 	}
 
-	auto pConn = connections_.front();
-	connections_.pop_front();
+	auto pConn = m_connQueue.front();
+	m_connQueue.pop_front();
 
 	return pConn;
 }
 
 void RedisPool::freeConnection(RedisConnection::ptr conn)
 {
-	MutexLockGuard lock(mutex_);
-	auto it = connections_.begin();
-	while (it != connections_.end())
+	MutexLockGuard lock(m_mutex);
+	auto it = m_connQueue.begin();
+	while (it != m_connQueue.end())
 	{
 		if (*it == conn)
 			break;
 		it++;
 	}
 
-	if (it == connections_.end())
+	if (it == m_connQueue.end())
 	{
-		connections_.push_back(conn);
+		m_connQueue.push_back(conn);
 	}
 
-	notEmpty_.notify(); //这个场景下，notifyall不能用，释放一次，通知一次才对
+	m_notEmpty.notify(); //这个场景下，notifyall不能用，释放一次，通知一次才对
 }

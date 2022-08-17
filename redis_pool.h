@@ -20,7 +20,7 @@ class RedisConnection
 public:
 	using ptr = std::shared_ptr<RedisConnection>;
 
-	RedisConnection(RedisPool *redisPool);
+	RedisConnection(RedisPool *redisPool, int64_t timeout = 0);
 
 	~RedisConnection();
 
@@ -28,12 +28,19 @@ public:
 
 	bool ping();
 
+	void updateActiveTime();
+
+	bool isExpire();
+
 public:
 	redisContext *m_context;
 
 private:
-	uint64_t m_lastActiveTime;
+	std::chrono::steady_clock::time_point m_lastActiveTime;
+
 	RedisPool *m_redisPool;
+
+	int64_t m_timeout; // 默认该连接失效时间，为0时不失效
 };
 
 class RedisPool
@@ -44,29 +51,34 @@ public:
 	~RedisPool();
 
 	int init();
+
 	void serverCron();
 
-	int getDBNo() { return dbNo_; }
+	const char *getServerIP()
+	{
+		return m_hostip.c_str();
+	}
 
-	const char *getServerIP() { return hostip_.c_str(); }
-	int getServerPort() { return hostport_; }
+	int getServerPort()
+	{
+		return m_hostport;
+	}
 
 	RedisConnection::ptr getConnection();
 
 	void freeConnection(RedisConnection::ptr conn);
 
 private:
-	const std::string hostip_;
-	uint16_t hostport_;
-	int minConn_;
-	int maxConn_;
-	int dbNo_ = 0;
+	const std::string m_hostip;
+	uint16_t m_hostport;
+	int m_minConn;
+	int m_maxConn;
 
-	mutable MutexLock mutex_;
-	Condition notEmpty_;
+	mutable MutexLock m_mutex;
+	Condition m_notEmpty;
 
-	std::list<RedisConnection::ptr> connections_;
-	std::thread *cronThread;
-	bool quit_;
+	std::list<RedisConnection::ptr> m_connQueue;
+	std::thread *m_cronThread; //用于定时检测连接情况的线程
+	bool m_quit;
 };
 #endif // REDIS_POOL_H

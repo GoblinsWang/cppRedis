@@ -19,7 +19,7 @@ RedisClient::~RedisClient()
     if (m_redisPool)
     {
         delete m_redisPool;
-        m_redisPool = NULL;
+        m_redisPool = nullptr;
     }
 }
 
@@ -28,30 +28,30 @@ RedisStatus RedisClient::command(const string &cmd)
     RedisStatus status;
 
     auto conn = m_redisPool->getConnection();
-    status.reply_ = (redisReply *)redisCommand(conn->m_context, cmd.c_str());
+    status.m_reply = (redisReply *)redisCommand(conn->m_context, cmd.c_str());
     m_redisPool->freeConnection(conn);
 
-    if (!status.reply_)
+    if (!status.m_reply)
     {
-        status.ok_ = false;
+        status.m_ok = false;
         return status;
     }
     //根据不同的type,填充不同返回值信息
-    if (status.reply_->type == REDIS_REPLY_ERROR)
+    if (status.m_reply->type == REDIS_REPLY_ERROR)
     {
-        status.ok_ = false;
-        status.detailStr_ = status.reply_->str;
+        status.m_ok = false;
+        status.m_detailStr = status.m_reply->str;
     }
-    else if (status.reply_->type == REDIS_REPLY_INTEGER)
+    else if (status.m_reply->type == REDIS_REPLY_INTEGER)
     {
-        status.resultInt_ = status.reply_->integer;
+        status.m_resultInt = status.m_reply->integer;
     }
     else if (status.reply()->type == REDIS_REPLY_STATUS)
     {
-        status.detailStr_ = status.reply_->str;
-        if (status.detailStr_ == "OK")
+        status.m_detailStr = status.m_reply->str;
+        if (status.m_detailStr == "OK")
         {
-            status.resultInt_ = 1;
+            status.m_resultInt = 1;
         }
     }
     else if (status.reply()->type == REDIS_REPLY_STRING)
@@ -59,7 +59,7 @@ RedisStatus RedisClient::command(const string &cmd)
     }
     else if (status.reply()->type == REDIS_REPLY_NIL)
     {
-        status.nil_ = true;
+        status.m_nil = true;
     }
     else if (status.reply()->type == REDIS_REPLY_ARRAY)
     {
@@ -77,15 +77,15 @@ RedisStatus RedisClient::set(const string &key, const string &value)
 
 // get成功则status.ok() == true 并且 status.nil() == false
 // get失败可能是 status.ok() == false, 或者 status.nil() == true
-//为了确保一定得到了想要的值, 请判断 if ( status.ok() && ! status.nil() )
+// 为了确保一定得到了想要的值, 请判断 if ( status.ok() && ! status.nil() )
 RedisStatus RedisClient::get(const string &key, string &value)
 {
     string cmd = "GET " + key;
     RedisStatus status = command(cmd);
     value = "";
-    if (status.reply_->type == REDIS_REPLY_STRING)
+    if (status.m_reply->type == REDIS_REPLY_STRING)
     {
-        value = status.reply_->str;
+        value = status.m_reply->str;
     }
     return status;
 }
@@ -130,9 +130,9 @@ RedisStatus RedisClient::lindex(const string &listKey, int index, string &item)
     string cmd = "LINDEX " + listKey + " " + std::to_string(index);
     RedisStatus status = command(cmd);
     item = "";
-    if (status.reply_->type == REDIS_REPLY_STRING)
+    if (status.m_reply->type == REDIS_REPLY_STRING)
     {
-        item = status.reply_->str;
+        item = status.m_reply->str;
     }
     return status;
 }
@@ -168,9 +168,9 @@ RedisStatus RedisClient::sismember(const string &setKey, const string &item, boo
 {
     string cmd = "SISMEMBER " + setKey + " " + item;
     RedisStatus status = command(cmd);
-    if (status.reply_->type == REDIS_REPLY_INTEGER)
+    if (status.m_reply->type == REDIS_REPLY_INTEGER)
     {
-        isMember = static_cast<bool>(status.reply_->integer);
+        isMember = static_cast<bool>(status.m_reply->integer);
     }
     else
     {
@@ -191,9 +191,9 @@ RedisStatus RedisClient::hget(const string &key, const string &field, string &va
     string cmd = "HGET " + key + " " + field;
     RedisStatus status = command(cmd);
     value = "";
-    if (status.reply_->type == REDIS_REPLY_STRING)
+    if (status.m_reply->type == REDIS_REPLY_STRING)
     {
-        value = status.reply_->str;
+        value = status.m_reply->str;
     }
     return status;
 }
@@ -223,9 +223,9 @@ RedisStatus RedisClient::hlen(const string &key, long long &len)
 {
     string cmd = "HLEN " + key;
     RedisStatus status = command(cmd);
-    if (status.reply_->type == REDIS_REPLY_INTEGER)
+    if (status.m_reply->type == REDIS_REPLY_INTEGER)
     {
-        len = status.reply_->integer;
+        len = status.m_reply->integer;
     }
     return status;
 }
@@ -244,12 +244,12 @@ RedisStatus RedisClient::hgetall(const string &key, map<string, string> &values)
     values.clear();
     string cmd = "HGETALL " + key;
     RedisStatus status = command(cmd);
-    if (status.reply_->type == REDIS_REPLY_ARRAY)
+    if (status.m_reply->type == REDIS_REPLY_ARRAY)
     {
-        for (size_t i = 1; i < status.reply_->elements; i = i + 2)
+        for (size_t i = 1; i < status.m_reply->elements; i = i + 2)
         {
-            redisReply *keyReply = (redisReply *)(status.reply_->element[i - 1]);
-            redisReply *valueReply = (redisReply *)(status.reply_->element[i]);
+            redisReply *keyReply = (redisReply *)(status.m_reply->element[i - 1]);
+            redisReply *valueReply = (redisReply *)(status.m_reply->element[i]);
             string key = keyReply->str;
             string value = valueReply->str;
             values[key] = value;
@@ -257,7 +257,7 @@ RedisStatus RedisClient::hgetall(const string &key, map<string, string> &values)
     }
     if (values.size() == 0)
     {
-        status.nil_ = true;
+        status.m_nil = true;
     }
 
     return status;
@@ -284,18 +284,18 @@ RedisStatus RedisClient::getVector(const string &cmd, vector<string> &vec)
 {
     vec.clear();
     RedisStatus status = command(cmd);
-    if (status.reply_->type == REDIS_REPLY_ARRAY)
+    if (status.m_reply->type == REDIS_REPLY_ARRAY)
     {
-        for (size_t i = 0; i < status.reply_->elements; i++)
+        for (size_t i = 0; i < status.m_reply->elements; i++)
         {
-            redisReply *reply = (redisReply *)(status.reply_->element[i]);
+            redisReply *reply = (redisReply *)(status.m_reply->element[i]);
             string name = reply->str;
             vec.push_back(name);
         }
     }
     if (vec.size() == 0)
     {
-        status.nil_ = true;
+        status.m_nil = true;
     }
     return status;
 }
@@ -323,9 +323,9 @@ RedisStatus RedisClient::zscore(const string &key, const string &member, int &sc
 {
     string cmd = "ZSCORE " + key + " " + member;
     RedisStatus status = command(cmd);
-    if (status.reply_->type == REDIS_REPLY_STRING)
+    if (status.m_reply->type == REDIS_REPLY_STRING)
     {
-        string value = status.reply_->str;
+        string value = status.m_reply->str;
         score = std::stoi(value);
     }
     return status;
@@ -342,7 +342,7 @@ RedisStatus RedisClient::zcard(const string &key, long long &num)
 {
     string cmd = "ZCARD " + key;
     RedisStatus status = command(cmd);
-    num = status.reply_->integer;
+    num = status.m_reply->integer;
     return status;
 }
 
@@ -350,7 +350,7 @@ RedisStatus RedisClient::zcount(const string &key, const int min, const int max,
 {
     string cmd = "ZCOUNT " + key + " " + std::to_string(min) + " " + std::to_string(max);
     RedisStatus status = command(cmd);
-    count = status.reply_->integer;
+    count = status.m_reply->integer;
     return status;
 }
 
@@ -358,7 +358,7 @@ RedisStatus RedisClient::zrank(const string &key, const string &member, long lon
 {
     string cmd = "ZRANK " + key + " " + member;
     RedisStatus status = command(cmd);
-    rank = status.reply_->integer;
+    rank = status.m_reply->integer;
     return status;
 }
 
