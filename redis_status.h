@@ -14,24 +14,29 @@ using std::string;
 // 成功执行ok标志为true, 返回为空则nil标志为true,
 // 可以从detail()看到出错具体错误信息
 // 可以从integer()得到返回的int类型数据
-class RedisStatus
+
+namespace cppredis
 {
-    friend class RedisClient;
 
-public:
-    RedisStatus();
-    bool ok() const;
-    bool nil() const;
-    string detail() const;
-    long long integer() const;
-    redisReply *reply() const;
+    class RedisStatus
+    {
+        friend class RedisClient;
 
-private:
-    redisReply *m_reply;
-    bool m_ok;
-    bool m_nil;
-    string m_detailStr;
-    long long m_resultInt;
-};
+    public:
+        RedisStatus();
+        bool ok() const;
+        bool nil() const;
+        string detail() const;
+        long long integer() const;
+        redisReply *reply() const;
 
+    private:
+        redisReply *m_reply;
+        bool m_ok;
+        bool m_nil;
+        string m_detailStr;
+        long long m_resultInt;
+    };
+
+} // namespace cppredis
 #endif // REDISSTATUS_H

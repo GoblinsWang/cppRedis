@@ -1,4 +1,5 @@
 #include "redis_pool.h"
+using namespace cppredis;
 
 RedisConnection::RedisConnection(RedisPool *redisPool, int64_t timeout)
 	: m_context(NULL),

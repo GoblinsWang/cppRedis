@@ -4,102 +4,105 @@
 #include <assert.h>
 #include <pthread.h>
 #include <errno.h>
-
-class MutexLock
+namespace cppredis
 {
-public:
-    MutexLock()
+
+    class MutexLock
     {
-        int ret = pthread_mutex_init(&m_mutex, NULL);
-        assert(ret == 0);
-        (void)ret;
-    }
+    public:
+        MutexLock()
+        {
+            int ret = pthread_mutex_init(&m_mutex, NULL);
+            assert(ret == 0);
+            (void)ret;
+        }
 
-    ~MutexLock()
+        ~MutexLock()
+        {
+            int ret = pthread_mutex_destroy(&m_mutex);
+            assert(ret == 0);
+            (void)ret;
+        }
+
+        void lock()
+        {
+            pthread_mutex_lock(&m_mutex);
+        }
+
+        void unlock()
+        {
+            pthread_mutex_unlock(&m_mutex);
+        }
+
+        pthread_mutex_t *getPthreadMutex() /* non-const */
+        {
+            return &m_mutex;
+        }
+
+    private:
+        pthread_mutex_t m_mutex;
+    };
+
+    class MutexLockGuard
     {
-        int ret = pthread_mutex_destroy(&m_mutex);
-        assert(ret == 0);
-        (void)ret;
-    }
+    public:
+        explicit MutexLockGuard(MutexLock &mutex)
+            : m_mutex(mutex)
+        {
+            m_mutex.lock();
+        }
 
-    void lock()
+        ~MutexLockGuard()
+        {
+            m_mutex.unlock();
+        }
+
+    private:
+        MutexLock &m_mutex;
+    };
+
+    class Condition
     {
-        pthread_mutex_lock(&m_mutex);
-    }
+    public:
+        explicit Condition(MutexLock &mutex)
+            : m_mutex(mutex)
+        {
+            pthread_cond_init(&m_pcond, NULL);
+        }
 
-    void unlock()
-    {
-        pthread_mutex_unlock(&m_mutex);
-    }
+        ~Condition()
+        {
+            pthread_cond_destroy(&m_pcond);
+        }
 
-    pthread_mutex_t *getPthreadMutex() /* non-const */
-    {
-        return &m_mutex;
-    }
+        void wait()
+        {
+            pthread_cond_wait(&m_pcond, m_mutex.getPthreadMutex());
+        }
 
-private:
-    pthread_mutex_t m_mutex;
-};
+        // returns true if time out, false otherwise.
+        bool waitForSeconds(int seconds)
+        {
+            struct timespec abstime;
+            clock_gettime(CLOCK_REALTIME, &abstime);
+            abstime.tv_sec += seconds;
+            return ETIMEDOUT == pthread_cond_timedwait(&m_pcond, m_mutex.getPthreadMutex(), &abstime);
+        }
 
-class MutexLockGuard
-{
-public:
-    explicit MutexLockGuard(MutexLock &mutex)
-        : m_mutex(mutex)
-    {
-        m_mutex.lock();
-    }
+        void notify()
+        {
+            pthread_cond_signal(&m_pcond);
+        }
 
-    ~MutexLockGuard()
-    {
-        m_mutex.unlock();
-    }
+        void notifyAll()
+        {
+            pthread_cond_broadcast(&m_pcond);
+        }
 
-private:
-    MutexLock &m_mutex;
-};
+    private:
+        MutexLock &m_mutex;
+        pthread_cond_t m_pcond;
+    };
 
-class Condition
-{
-public:
-    explicit Condition(MutexLock &mutex)
-        : m_mutex(mutex)
-    {
-        pthread_cond_init(&m_pcond, NULL);
-    }
-
-    ~Condition()
-    {
-        pthread_cond_destroy(&m_pcond);
-    }
-
-    void wait()
-    {
-        pthread_cond_wait(&m_pcond, m_mutex.getPthreadMutex());
-    }
-
-    // returns true if time out, false otherwise.
-    bool waitForSeconds(int seconds)
-    {
-        struct timespec abstime;
-        clock_gettime(CLOCK_REALTIME, &abstime);
-        abstime.tv_sec += seconds;
-        return ETIMEDOUT == pthread_cond_timedwait(&m_pcond, m_mutex.getPthreadMutex(), &abstime);
-    }
-
-    void notify()
-    {
-        pthread_cond_signal(&m_pcond);
-    }
-
-    void notifyAll()
-    {
-        pthread_cond_broadcast(&m_pcond);
-    }
-
-private:
-    MutexLock &m_mutex;
-    pthread_cond_t m_pcond;
-};
-
+} // namespace cppredis
 #endif // REDIS_SYNCH_H

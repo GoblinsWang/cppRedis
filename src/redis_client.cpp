@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <iostream>
-
 #include "redis_client.h"
+using namespace cppredis;
 
 RedisClient::RedisClient(const std::string ip, uint16_t port, int minConn, int maxConn)
     : m_hostip(ip),

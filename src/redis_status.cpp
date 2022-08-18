@@ -1,4 +1,5 @@
 #include "redis_status.h"
+using namespace cppredis;
 
 RedisStatus::RedisStatus() : m_reply(NULL), m_ok(true), m_nil(false), m_detailStr(), m_resultInt(0)
 {
