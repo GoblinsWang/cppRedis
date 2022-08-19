@@ -1,5 +1,5 @@
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef REDIS_COMMON_H
+#define REDIS_COMMON_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,5 +18,7 @@
 #include <memory>
 
 #include <hiredis/hiredis.h>
+#include "../log/logger.h"
+using namespace cpplog;
 
-#endif // COMMON_H
+#endif // REDIS_COMMON_H

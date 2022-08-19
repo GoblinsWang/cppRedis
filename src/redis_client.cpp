@@ -1,6 +1,4 @@
-#include <assert.h>
-#include <iostream>
-#include "redis_client.h"
+#include "../redis_client.h"
 using namespace cppredis;
 
 RedisClient::RedisClient(const std::string ip, uint16_t port, int minConn, int maxConn)
@@ -11,6 +9,8 @@ RedisClient::RedisClient(const std::string ip, uint16_t port, int minConn, int m
       m_redisPool(new RedisPool(ip, port, minConn, maxConn))
 {
     m_redisPool->init();
+    std::cout << "redis pool init success!" << std::endl;
+    // LogDebug("redis pool init success!");
 }
 
 RedisClient::~RedisClient()
@@ -207,6 +207,7 @@ RedisStatus RedisClient::hget(const string &key, const string &field, string &va
 RedisStatus RedisClient::hset(const string &key, const string &field, const string &value)
 {
     string cmd = "HSET " + key + " " + field + " " + value;
+    std::cout << "cmd : " << cmd << std::endl;
     RedisStatus status = command(cmd);
     return status;
 }
